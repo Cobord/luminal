@@ -1,4 +1,7 @@
-use egg::*;
+use egg::{
+    define_language, merge_option, rewrite, Analysis, AstSize, DidMerge, Extractor, FromOp, Id,
+    Language, RecExpr, RecExprParseError, Runner, Subst, Symbol, Var,
+};
 use generational_box::{AnyStorage, GenerationalBox, Owner, SyncStorage};
 use rustc_hash::FxHashMap;
 use serde::{Serialize, Serializer};
@@ -116,10 +119,10 @@ impl Term {
             Term::Mod => Some(|a, b| a.checked_rem(b)),
             Term::Max => Some(|a, b| Some(a.max(b))),
             Term::Min => Some(|a, b| Some(a.min(b))),
-            Term::And => Some(|a, b| Some((a != 0 && b != 0) as i64)),
-            Term::Or => Some(|a, b| Some((a != 0 || b != 0) as i64)),
-            Term::Gte => Some(|a, b| Some((a >= b) as i64)),
-            Term::Lt => Some(|a, b| Some((a < b) as i64)),
+            Term::And => Some(|a, b| Some(i64::from(a != 0 && b != 0))),
+            Term::Or => Some(|a, b| Some(i64::from(a != 0 || b != 0))),
+            Term::Gte => Some(|a, b| Some(i64::from(a >= b))),
+            Term::Lt => Some(|a, b| Some(i64::from(a < b))),
             _ => None,
         }
     }
@@ -132,10 +135,10 @@ impl Term {
             Term::Mod => Some(|a, b| a % b),
             Term::Max => Some(|a, b| a.max(b)),
             Term::Min => Some(|a, b| a.min(b)),
-            Term::And => Some(|a, b| (a.abs() > 1e-4 && b.abs() > 1e-4) as i32 as f64),
-            Term::Or => Some(|a, b| (a.abs() > 1e-4 || b.abs() > 1e-4) as i32 as f64),
-            Term::Gte => Some(|a, b| (a >= b) as i32 as f64),
-            Term::Lt => Some(|a, b| (a < b) as i32 as f64),
+            Term::And => Some(|a, b| f64::from(i32::from(a.abs() > 1e-4 && b.abs() > 1e-4))),
+            Term::Or => Some(|a, b| f64::from(i32::from(a.abs() > 1e-4 || b.abs() > 1e-4))),
+            Term::Gte => Some(|a, b| f64::from(i32::from(a >= b))),
+            Term::Lt => Some(|a, b| f64::from(i32::from(a < b))),
             _ => None,
         }
     }
@@ -421,7 +424,7 @@ impl Expression {
     pub fn exec_single_var_stack(&self, value: usize, stack: &mut Vec<i64>) -> usize {
         for term in self.terms.read().iter() {
             match term {
-                Term::Num(n) => stack.push(*n as i64),
+                Term::Num(n) => stack.push(i64::from(*n)),
                 Term::Acc(_) => stack.push(1),
                 Term::Var(_) => stack.push(value as i64),
                 _ => {
@@ -445,13 +448,13 @@ impl Expression {
     ) -> Option<usize> {
         for term in self.terms.read().iter() {
             match term {
-                Term::Num(n) => stack.push(*n as i64),
+                Term::Num(n) => stack.push(i64::from(*n)),
                 Term::Acc(_) => stack.push(1),
                 Term::Var(c) =>
                 {
                     #[allow(clippy::needless_borrow)]
                     if let Some(n) = variables.get(&c) {
-                        stack.push(*n as i64)
+                        stack.push(*n as i64);
                     } else {
                         return None;
                     }
@@ -477,13 +480,13 @@ impl Expression {
     ) -> Option<f64> {
         for term in self.terms.read().iter() {
             match term {
-                Term::Num(n) => stack.push(*n as f64),
+                Term::Num(n) => stack.push(f64::from(*n)),
                 Term::Acc(_) => stack.push(1.0),
                 Term::Var(c) =>
                 {
                     #[allow(clippy::needless_borrow)]
                     if let Some(n) = variables.get(&c) {
-                        stack.push(*n as f64)
+                        stack.push(*n as f64);
                     } else {
                         return None;
                     }
@@ -562,13 +565,13 @@ impl From<&i32> for Expression {
 
 impl From<bool> for Expression {
     fn from(value: bool) -> Self {
-        Expression::new(vec![Term::Num(value as i32)])
+        Expression::new(vec![Term::Num(i32::from(value))])
     }
 }
 
 impl From<&bool> for Expression {
     fn from(value: &bool) -> Self {
-        Expression::new(vec![Term::Num(*value as i32)])
+        Expression::new(vec![Term::Num(i32::from(*value))])
     }
 }
 
@@ -903,7 +906,7 @@ fn luminal_to_egg(expr: &Expression) -> RecExpr<Math> {
     for term in expr.terms.read().iter() {
         match term {
             Term::Num(_) | Term::Var(_) => {
-                stack.push(symbolic_expressions::Sexp::String(format!("{term:?}")))
+                stack.push(symbolic_expressions::Sexp::String(format!("{term:?}")));
             }
             Term::Acc(_) => stack.push(symbolic_expressions::Sexp::String("1".to_string())),
             _ => {
@@ -918,6 +921,7 @@ fn luminal_to_egg(expr: &Expression) -> RecExpr<Math> {
             }
         }
     }
+    #[allow(clippy::items_after_statements)]
     fn parse_sexp_into<L: FromOp>(
         sexp: &Sexp,
         expr: &mut RecExpr<L>,
@@ -955,68 +959,68 @@ fn egg_to_luminal(expr: RecExpr<Math>) -> Expression {
         match expr.last().unwrap() {
             Math::Num(i) => vec![Term::Num(*i)],
             Math::Add([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Add],
             ]
             .concat(),
             Math::Sub([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Sub],
             ]
             .concat(),
             Math::Mul([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Mul],
             ]
             .concat(),
             Math::Div([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Div],
             ]
             .concat(),
             Math::Mod([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Mod],
             ]
             .concat(),
             Math::Min([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Min],
             ]
             .concat(),
             Math::Max([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Max],
             ]
             .concat(),
             Math::And([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::And],
             ]
             .concat(),
             Math::Or([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Or],
             ]
             .concat(),
             Math::LessThan([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Lt],
             ]
             .concat(),
             Math::GreaterThanEqual([a, b]) => [
-                create_postfix(&expr[..usize::from(*b) + 1]),
-                create_postfix(&expr[..usize::from(*a) + 1]),
+                create_postfix(&expr[..=usize::from(*b)]),
+                create_postfix(&expr[..=usize::from(*a)]),
                 vec![Term::Gte],
             ]
             .concat(),
@@ -1065,17 +1069,16 @@ impl Analysis<Math> for ConstantFold {
                 let (a, b) = (x(a)?, x(b)?);
                 if a % b != 0 {
                     return None;
-                } else {
-                    a.checked_div(b)?
                 }
+                a.checked_div(b)?
             }
             Math::Mod([a, b]) => x(a)?.checked_rem(x(b)?)?,
             Math::Min([a, b]) => x(a)?.min(x(b)?),
             Math::Max([a, b]) => x(a)?.max(x(b)?),
-            Math::And([a, b]) => (x(a)? != 0 && x(b)? != 0) as i32,
-            Math::Or([a, b]) => (x(a)? != 0 || x(b)? != 0) as i32,
-            Math::LessThan([a, b]) => (x(a)? < x(b)?) as i32,
-            Math::GreaterThanEqual([a, b]) => (x(a)? >= x(b)?) as i32,
+            Math::And([a, b]) => i32::from(x(a)? != 0 && x(b)? != 0),
+            Math::Or([a, b]) => i32::from(x(a)? != 0 || x(b)? != 0),
+            Math::LessThan([a, b]) => i32::from(x(a)? < x(b)?),
+            Math::GreaterThanEqual([a, b]) => i32::from(x(a)? >= x(b)?),
             _ => return None,
         })
     }
@@ -1102,14 +1105,14 @@ impl Analysis<Math> for ConstantFold {
 
 fn is_not_zero(var: &str) -> impl Fn(&mut EGraph, Id, &Subst) -> bool {
     let var = var.parse().unwrap();
-    move |egraph, _, subst| egraph[subst[var]].data.map(|i| i != 0).unwrap_or(true)
+    move |egraph, _, subst| egraph[subst[var]].data.map_or(true, |i| i != 0)
 }
 
 fn is_const_positive(vars: &[&str]) -> impl Fn(&mut EGraph, Id, &Subst) -> bool {
     let vars: Vec<Var> = vars.iter().map(|i| i.parse().unwrap()).collect::<Vec<_>>();
     move |egraph, _, subst| {
         vars.iter()
-            .all(|i| egraph[subst[*i]].data.map(|i| i >= 0).unwrap_or(false))
+            .all(|i| egraph[subst[*i]].data.is_some_and(|i| i >= 0))
     }
 }
 

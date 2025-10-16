@@ -112,6 +112,7 @@ impl ToIds for () {
     }
 }
 
+#[allow(clippy::implicit_hasher)]
 impl<T: ToIds> ToIds for FxHashMap<String, T> {
     fn to_ids(&self) -> Vec<NodeIndex> {
         self.values().flat_map(|i| i.to_ids()).collect()
@@ -317,7 +318,7 @@ tuple_impls!(
 // Helpers
 
 impl Graph {
-    /// Add op on the graph, and get back a NewOp
+    /// Add `op` on the graph, and get back a `NewOp`
     ///
     /// ```rust
     /// use luminal::prelude::*;
@@ -337,7 +338,7 @@ impl Graph {
             num_srcs: 0,
         }
     }
-    /// Add op on the graph, and get back a NewOp. Just like add_op, except a boxed op is expected.
+    /// Add `op` on the graph, and get back a `NewOp`. Just like `add_op`, except a boxed op is expected.
     pub fn add_boxed_op(&mut self, op: Box<dyn Operator + 'static>) -> NewOp<'_> {
         self.linearized_graph = None;
         NewOp {
@@ -407,11 +408,7 @@ impl Graph {
                 }
                 if show_shapes
                     && new_graph.contains_node(id_map[&edge.target()])
-                    && edge
-                        .weight()
-                        .as_data()
-                        .map(|d| !d.2.is_empty())
-                        .unwrap_or_default()
+                    && edge.weight().as_data().is_some_and(|d| !d.2.is_empty())
                 {
                     new_graph
                         .node_weight_mut(id_map[&edge.target()])
@@ -712,7 +709,7 @@ fn backtrack_match(
     mapping.insert(pattern_root, main_root);
     let main_parents = get_parents(main_graph, main_root, |e| !e.weight().is_schedule());
     'pattern_loop: for pattern_parent in get_parents(pattern_graph, pattern_root, |_| true) {
-        for parent in main_parents.iter() {
+        for parent in &main_parents {
             if mapping.values().any(|&v| v == *parent) {
                 // This main node was used already, skip it
                 continue;
@@ -764,24 +761,21 @@ fn test_node(
                 return false;
             }
             for (a, b) in a_sh.iter().zip(b_sh.dims().into_iter()) {
-                match a.to_usize() {
-                    Some(n) => {
-                        if b.to_usize().map(|i| i != n).unwrap_or(true) {
+                if let Some(n) = a.to_usize() {
+                    if b.to_usize().map_or(true, |i| i != n) {
+                        return false;
+                    }
+                } else {
+                    let c = a
+                        .to_symbols()
+                        .pop()
+                        .expect("Selector dimension must be either a symbol or number");
+                    if let Some(expected) = shape_map.get(&c) {
+                        if b != *expected {
                             return false;
                         }
-                    }
-                    None => {
-                        let c = a
-                            .to_symbols()
-                            .pop()
-                            .expect("Selector dimension must be either a symbol or number");
-                        if let Some(expected) = shape_map.get(&c) {
-                            if b != *expected {
-                                return false;
-                            }
-                        } else {
-                            shape_map.insert(c, b);
-                        }
+                    } else {
+                        shape_map.insert(c, b);
                     }
                 }
             }
@@ -955,6 +949,5 @@ pub fn debug() -> bool {
     std::env::var("DEBUG")
         .unwrap_or_default()
         .parse::<i32>()
-        .map(|i| i == 1)
-        .unwrap_or_default()
+        .is_ok_and(|i| i == 1)
 }

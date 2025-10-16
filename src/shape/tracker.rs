@@ -13,8 +13,8 @@ impl NewShapeTracker {
     /// Make a new row-major shape tracker
     pub fn new(dims: impl ToShape) -> NewShapeTracker {
         let mut s = Self {
-            dims: Default::default(),
-            strides: Default::default(),
+            dims: ArrayVec::default(),
+            strides: ArrayVec::default(),
         };
         let mut stride = Expression::from(1);
         for d in dims.to_shape().into_iter().rev() {
@@ -35,8 +35,8 @@ impl NewShapeTracker {
             "Dimensions and strides need to be the same size!"
         );
         let mut s = Self {
-            dims: Default::default(),
-            strides: Default::default(),
+            dims: ArrayVec::default(),
+            strides: ArrayVec::default(),
         };
         for (dim, stride) in dims.into_iter().zip(strides) {
             s.dims.push(dim);
@@ -59,11 +59,11 @@ impl ShapeTracker {
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn new(dims: impl ToShape) -> Self {
         let mut s = Self {
-            dims: Default::default(),
-            indexes: Default::default(),
-            fake: Default::default(),
-            mask: Default::default(),
-            padding: Default::default(),
+            dims: ArrayVec::default(),
+            indexes: ArrayVec::default(),
+            fake: ArrayVec::default(),
+            mask: ArrayVec::default(),
+            padding: ArrayVec::default(),
         };
         for (i, d) in dims.to_shape().into_iter().enumerate() {
             s.dims.push(d);
@@ -132,7 +132,7 @@ impl ShapeTracker {
     pub fn remove_dim(&mut self, axis: usize) -> Expression {
         let index = self.indexes.remove(axis);
         self.fake.remove(index);
-        for i in self.indexes.iter_mut() {
+        for i in &mut self.indexes {
             if *i > index {
                 *i -= 1;
             }
@@ -160,11 +160,11 @@ impl ShapeTracker {
             .rev()
             .scan(Expression::from(1), |state, i| {
                 let ret = *state;
-                if !self.fake[i] {
+                if self.fake[i] {
+                    Some(Expression::from(0))
+                } else {
                     *state *= self.dims[i];
                     Some(ret)
-                } else {
-                    Some(Expression::from(0))
                 }
             })
             .collect::<Vec<_>>();
@@ -234,11 +234,9 @@ impl ShapeTracker {
                     ret &= dim_ind.gte(greater_than);
                 }
                 ret &= dim_ind.lt(self.dims[i] + self.padding[i].0);
-                if top_slice
-                    .to_usize()
-                    .map(|s| self.dims[i].to_usize().map(|dim| s < dim).unwrap_or(true))
-                    .unwrap_or(true)
-                {
+                if top_slice.to_usize().map_or(true, |s| {
+                    self.dims[i].to_usize().map_or(true, |dim| s < dim)
+                }) {
                     ret = ret.min(top_slice);
                 }
             }
@@ -319,7 +317,11 @@ impl ShapeTracker {
             .collect()
     }
 
-    /// Realize the true shape and convert it to usizes. All dyn dims must be replaced already
+    /// Realize the true shape and convert it to usizes.
+    ///
+    /// # Panics
+    ///
+    /// All dyn dims must be replaced already
     pub fn shape_usize(&self) -> Vec<usize> {
         self.dims().iter().map(|e| e.to_usize().unwrap()).collect()
     }
@@ -340,18 +342,13 @@ impl ShapeTracker {
             .map(|(i, m)| (self.indexes[i], m))
         {
             // Make sure we aren't padding a masked dimension
-            if (e.to_usize().map(|n| n != 0).unwrap_or(true)
+            if (e.to_usize().map_or(true, |n| n != 0)
                 && self.mask[ind]
                     .1
                     .to_usize()
-                    .map(|n| n as i32 != i32::MAX)
-                    .unwrap_or(true))
-                || (s.to_usize().map(|n| n != 0).unwrap_or(true)
-                    && self.mask[ind]
-                        .0
-                        .to_usize()
-                        .map(|n| n as i32 != 0)
-                        .unwrap_or(true))
+                    .map_or(true, |n| n as i32 != i32::MAX))
+                || (s.to_usize().map_or(true, |n| n != 0)
+                    && self.mask[ind].0.to_usize().map_or(true, |n| n as i32 != 0))
             {
                 panic!("Adding padding to a masked shape isn't supported")
             }
@@ -372,14 +369,14 @@ impl ShapeTracker {
         dyn_dim_map: &FxHashMap<char, usize>,
         stack: &mut Vec<i64>,
     ) {
-        for d in self.dims.iter_mut() {
+        for d in &mut self.dims {
             *d = d.exec_stack(dyn_dim_map, stack).unwrap().into();
         }
-        for (a, b) in self.padding.iter_mut() {
+        for (a, b) in &mut self.padding {
             *a = a.exec_stack(dyn_dim_map, stack).unwrap().into();
             *b = b.exec_stack(dyn_dim_map, stack).unwrap().into();
         }
-        for (a, b) in self.mask.iter_mut() {
+        for (a, b) in &mut self.mask {
             *a = a.exec_stack(dyn_dim_map, stack).unwrap().into();
             *b = b.exec_stack(dyn_dim_map, stack).unwrap().into();
         }
@@ -387,16 +384,14 @@ impl ShapeTracker {
 
     pub fn is_sliced(&self) -> bool {
         self.mask.iter().any(|(b, e)| {
-            b.to_usize().map(|i| i != 0).unwrap_or(true)
-                || e.to_usize().map(|n| n as i32 != i32::MAX).unwrap_or(true)
+            (b.to_usize() != Some(0)) || e.to_usize().map_or(true, |n| n as i32 != i32::MAX)
         })
     }
 
     pub fn is_padded(&self) -> bool {
-        self.padding.iter().any(|(b, e)| {
-            b.to_usize().map(|i| i != 0).unwrap_or(true)
-                || e.to_usize().map(|n| n != 0).unwrap_or(true)
-        })
+        self.padding
+            .iter()
+            .any(|(b, e)| (b.to_usize() != Some(0)) || (e.to_usize() != Some(0)))
     }
 }
 

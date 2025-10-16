@@ -28,7 +28,7 @@ impl From<&GraphTensor> for GraphTensor {
 }
 
 impl GraphTensor {
-    /// Create a GraphTensor from a NodeIndex
+    /// Create a `GraphTensor` from a `NodeIndex`
     pub fn from_id(id: NodeIndex, shape: ShapeTracker, graph_ref: *mut Graph) -> Self {
         Self {
             id,

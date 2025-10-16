@@ -68,31 +68,32 @@ pub fn assert_close(a_vec: &[f32], b_vec: &[f32]) {
     assert_close_precision(a_vec, b_vec, 1e-3);
 }
 
+/// # Panics
+///
 /// Ensure two arrays are nearly equal to a decimal place
 pub fn assert_close_precision(a_vec: &[f32], b_vec: &[f32], threshold: f32) {
     assert_eq!(a_vec.len(), b_vec.len(), "Number of elements doesn't match");
     for (i, (a, b)) in a_vec.iter().zip(b_vec.iter()).enumerate() {
-        if (a - b).abs() > threshold {
-            panic!(
-                "{a} is not close to {b}, index {i}, avg distance: {}",
-                a_vec
-                    .iter()
-                    .zip(b_vec.iter())
-                    .map(|(a, b)| (a - b).abs())
-                    .sum::<f32>()
-                    / a_vec.len() as f32
-            );
-        }
+        assert!(
+            (a - b).abs() <= threshold,
+            "{a} is not close to {b}, index {i}, avg distance: {}",
+            a_vec
+                .iter()
+                .zip(b_vec.iter())
+                .map(|(a, b)| (a - b).abs())
+                .sum::<f32>()
+                / a_vec.len() as f32
+        );
     }
 }
 
+/// # Panics
+///
 /// Ensure two arrays are exactly equal
 pub fn assert_exact<T: PartialEq + Debug>(a_vec: &[T], b_vec: &[T]) {
     assert_eq!(a_vec.len(), b_vec.len(), "Number of elements doesn't match");
     for (i, (a, b)) in a_vec.iter().zip(b_vec.iter()).enumerate() {
-        if a != b {
-            panic!("{a:?} is not equal to {b:?}, index {i}");
-        }
+        assert_eq!(a, b, "{a:?} is not equal to {b:?}, index {i}");
     }
 }
 

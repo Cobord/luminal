@@ -33,7 +33,7 @@ impl Tensor {
     }
 }
 
-/// Some sort of data, for instance a Vec<f32> on CPU, CudaSlice<f32> on Nvidia GPUs, or metal::Buffer for Apple GPUs
+/// Some sort of data, for instance a `Vec<f32>` on CPU, `CudaSlice<f32>` on Nvidia GPUs, or `metal::Buffer` for Apple GPUs
 pub trait Data: Any + Debug + DynClone {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -348,8 +348,9 @@ impl Operator for LessThan {
         let rexpr = (inp[1].1.index_expression(), inp[1].1.valid_expression());
         let mut stack = vec![];
         for (i, out) in out_data.iter_mut().enumerate() {
-            *out = (get_index(lhs, &lexpr, &mut stack, i) < get_index(rhs, &rexpr, &mut stack, i))
-                as i32 as f32;
+            *out = i32::from(
+                get_index(lhs, &lexpr, &mut stack, i) < get_index(rhs, &rexpr, &mut stack, i),
+            ) as f32;
         }
         vec![Tensor::new(out_data)]
     }

@@ -40,9 +40,11 @@ pub fn transfer_data(
             dest_graph.tensors.insert((dest, output_num), tensor);
             output_num += 1;
         }
-        if output_num == 0 {
-            panic!("No source tensor found for node {}", src.index());
-        }
+        assert!(
+            output_num != 0,
+            "No source tensor found for node {}",
+            src.index()
+        );
     }
 }
 
@@ -54,9 +56,11 @@ pub fn transfer_data_same_graph(srcs: impl ToIds, dests: impl ToIds, graph: &mut
             graph.tensors.insert((dest, output_num), tensor);
             output_num += 1;
         }
-        if output_num == 0 {
-            panic!("No source tensor found for node {}", src.index());
-        }
+        assert!(
+            output_num != 0,
+            "No source tensor found for node {}",
+            src.index()
+        );
     }
 }
 
@@ -158,7 +162,7 @@ impl<X, M: Module<X, Output = X>> Module<X> for Vec<M> {
 impl<X, M: Module<X, Output = X>> Module<X> for &[M] {
     type Output = X;
     fn forward(&self, mut x: X) -> Self::Output {
-        for layer in self.iter() {
+        for layer in *self {
             x = layer.forward(x);
         }
         x
@@ -168,7 +172,7 @@ impl<X, M: Module<X, Output = X>> Module<X> for &[M] {
 impl<const N: usize, X, M: Module<X, Output = X>> Module<X> for [M; N] {
     type Output = X;
     fn forward(&self, mut x: X) -> Self::Output {
-        for layer in self.iter() {
+        for layer in self {
             x = layer.forward(x);
         }
         x
@@ -211,14 +215,14 @@ tuple_impls!([M1, M2, M3, M4, M5, M6, M7, M8] [0, 1, 2, 3, 4, 5, 6, 7], M8, [M7,
 tuple_impls!([M1, M2, M3, M4, M5, M6, M7, M8, M9] [0, 1, 2, 3, 4, 5, 6, 7, 8], M9, [M8, M7, M6, M5, M4, M3, M2, M1]);
 tuple_impls!([M1, M2, M3, M4, M5, M6, M7, M8, M9, M10] [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], M10, [M9, M8, M7, M6, M5, M4, M3, M2, M1]);
 
-/// Tell luminal how to represent the module as a dict of (String, NodeIndex)'s
+/// Tell luminal how to represent the module as a dict of `(String, NodeIndex)`'s
 pub trait SerializeModule {
     fn serialize(&self, s: &mut Serializer);
 }
 
 impl<T: SerializeModule> SerializeModule for &T {
     fn serialize(&self, s: &mut Serializer) {
-        (*self).serialize(s)
+        (*self).serialize(s);
     }
 }
 

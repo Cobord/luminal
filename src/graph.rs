@@ -205,7 +205,7 @@ impl Graph {
                 get_source_tensors(&self.no_delete, &mut self.tensors, src_ids, &consumers);
 
             // Substitute in the dyn dims
-            for (_, st) in srcs.iter_mut() {
+            for (_, st) in &mut srcs {
                 st.resolve_global_dyn_dims_stack(&self.dyn_map, &mut dim_stack);
             }
 
@@ -230,7 +230,7 @@ impl Graph {
             self.toposort();
         }
         let mut dim_stack = Vec::new();
-        for (node, src_ids) in self.linearized_graph.as_ref().unwrap().iter() {
+        for (node, src_ids) in self.linearized_graph.as_ref().unwrap() {
             if self.tensors.contains_key(&(*node, 0)) {
                 continue;
             }
@@ -245,7 +245,7 @@ impl Graph {
                 .collect_vec();
 
             // Substitute in the dyn dims
-            for (_, st) in srcs.iter_mut() {
+            for (_, st) in &mut srcs {
                 st.resolve_global_dyn_dims_stack(&self.dyn_map, &mut dim_stack);
             }
 
@@ -284,7 +284,7 @@ impl Graph {
             (width.saturating_sub(" Executing ".len())) / 2
         );
         let start = std::time::Instant::now();
-        for (node, src_ids) in self.linearized_graph.as_ref().unwrap().iter() {
+        for (node, src_ids) in self.linearized_graph.as_ref().unwrap() {
             if self.tensors.contains_key(&(*node, 0)) {
                 continue;
             }
@@ -295,7 +295,7 @@ impl Graph {
                 get_source_tensors(&self.no_delete, &mut self.tensors, src_ids, &consumers);
 
             // Substitute in the dyn dims
-            for (_, st) in srcs.iter_mut() {
+            for (_, st) in &mut srcs {
                 st.resolve_global_dyn_dims_stack(&self.dyn_map, &mut dim_stack);
             }
 

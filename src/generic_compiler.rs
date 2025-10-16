@@ -130,18 +130,13 @@ impl Compiler for RemoveSingleReductions {
                     .graph
                     .edges_directed(node, Direction::Incoming)
                     .next()
-                    .map(|e| {
-                        e.weight()
-                            .as_data()
-                            .map(|w| {
-                                w.2.dims[w.2.indexes[dim]]
-                                    .to_usize()
-                                    .map(|i| i == 1)
-                                    .unwrap_or_default()
-                            })
-                            .unwrap_or_default()
+                    .is_some_and(|e| {
+                        e.weight().as_data().is_some_and(|w| {
+                            w.2.dims[w.2.indexes[dim]]
+                                .to_usize()
+                                .is_some_and(|i| i == 1)
+                        })
                     })
-                    .unwrap_or_default()
                 {
                     let upstream = graph
                         .graph
@@ -243,6 +238,7 @@ pub struct ArithmeticElimination;
 
 impl Compiler for ArithmeticElimination {
     type Output = ();
+    #[allow(clippy::too_many_lines)]
     fn compile<T: ToIdsMut>(&self, graph: &mut Graph, mut ids: T) {
         // x + 0, 0 + x
         let zero = constant(0.);

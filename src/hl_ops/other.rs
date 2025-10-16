@@ -62,7 +62,7 @@ impl Graph {
     /// ARange from 0 to N
     pub fn arange(&mut self, to: impl Into<Expression>) -> GraphTensor {
         let to = to.into();
-        if to.to_usize().map(|i| i == 1).unwrap_or_default() {
+        if to.to_usize().is_some_and(|i| i == 1) {
             // Single number ARange is just 0
             self.constant(0.).expand_dim(0, to)
         } else {
@@ -88,7 +88,7 @@ impl Graph {
 
     /// Lower left-hand triangle of 1s. Currently required to be square
     ///
-    /// Same API as https://pytorch.org/docs/stable/generated/torch.tril
+    /// Same API as <https://pytorch.org/docs/stable/generated/torch.tril>
     pub fn tril(&mut self, size: impl Into<Expression>, diagonal: i32) -> GraphTensor {
         let size = size.into();
         let horizontal = self.arange(size).expand_dim(0, size);
@@ -99,7 +99,7 @@ impl Graph {
 
     /// Upper right-hand triangle of 1s
     ///
-    /// Same API as https://pytorch.org/docs/stable/generated/torch.triu
+    /// Same API as <https://pytorch.org/docs/stable/generated/torch.triu>
     pub fn triu(&mut self, size: impl Into<Expression>, diagonal: i32) -> GraphTensor {
         let size = size.into();
         let horizontal = self.arange(size).expand_dim(0, size).contiguous();
@@ -153,6 +153,7 @@ impl GraphTensor {
     }
 
     /// Check the tensor value against a binary file
+    #[allow(clippy::too_many_lines)]
     pub fn diff(&self, file: impl Into<PathBuf>, atol: f32, rtol: f32) -> Self {
         let path = file.into();
         let id = self
