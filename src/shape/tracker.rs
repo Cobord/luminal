@@ -342,12 +342,12 @@ impl ShapeTracker {
             .map(|(i, m)| (self.indexes[i], m))
         {
             // Make sure we aren't padding a masked dimension
-            if (e.to_usize().map_or(true, |n| n != 0)
+            if ((e.to_usize() != Some(0))
                 && self.mask[ind]
                     .1
                     .to_usize()
                     .map_or(true, |n| n as i32 != i32::MAX))
-                || (s.to_usize().map_or(true, |n| n != 0)
+                || ((s.to_usize() != Some(0))
                     && self.mask[ind].0.to_usize().map_or(true, |n| n as i32 != 0))
             {
                 panic!("Adding padding to a masked shape isn't supported")

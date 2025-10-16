@@ -1105,7 +1105,7 @@ impl Analysis<Math> for ConstantFold {
 
 fn is_not_zero(var: &str) -> impl Fn(&mut EGraph, Id, &Subst) -> bool {
     let var = var.parse().unwrap();
-    move |egraph, _, subst| egraph[subst[var]].data.map_or(true, |i| i != 0)
+    move |egraph, _, subst| egraph[subst[var]].data != Some(0)
 }
 
 fn is_const_positive(vars: &[&str]) -> impl Fn(&mut EGraph, Id, &Subst) -> bool {

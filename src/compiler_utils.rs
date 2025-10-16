@@ -762,7 +762,7 @@ fn test_node(
             }
             for (a, b) in a_sh.iter().zip(b_sh.dims().into_iter()) {
                 if let Some(n) = a.to_usize() {
-                    if b.to_usize().map_or(true, |i| i != n) {
+                    if b.to_usize() != Some(n) {
                         return false;
                     }
                 } else {
