@@ -193,7 +193,7 @@ impl<C: Compiler + Debug> Compiler for Looped<C> {
     fn compile<T: ToIdsMut>(&self, graph: &mut Graph, mut remap: T) {
         let mut linearized = None;
         loop {
-            self.0.compile(graph, &mut remap);
+            let _cur_output = self.0.compile(graph, &mut remap);
             graph.toposort();
             if linearized == graph.linearized_graph {
                 break;
