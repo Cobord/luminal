@@ -365,11 +365,16 @@ impl Graph {
         self.reset();
     }
 
+    /// The `Operator` associated to this `node` is of type `F`?
+    /// Assuming this `node` exists in the graph
     #[inline]
     pub fn this_node_is<F: 'static>(&self, node: NodeIndex) -> bool {
         self.graph.node_weight(node).unwrap().as_any().is::<F>()
     }
 
+    /// If the `Operator` associated to this `node` is of type `F`,
+    /// give that, otherwise None.
+    /// Assuming this `node` exists in the graph
     #[inline]
     pub fn get_this_node_is<F: 'static>(&self, node: NodeIndex) -> Option<&F> {
         self.graph
@@ -379,15 +384,12 @@ impl Graph {
             .downcast_ref::<F>()
     }
 
-    /// Gather the nodes which have an edge going to `node`
+    /// Gather the nodes which have an edge going to `node` (assume exists)
     /// and where the edge connecting them is a data dependency
     /// They are properly sorted according to the `input_order`
     /// field of the data dependencies.
     #[inline]
-    pub fn get_incomings(
-        &self,
-        node: NodeIndex,
-    ) -> Vec<NodeIndex> {
+    pub fn get_incomings(&self, node: NodeIndex) -> Vec<NodeIndex> {
         self.graph
             .edges_directed(node, petgraph::Direction::Incoming)
             .filter(|e| !e.weight().is_schedule())
@@ -402,7 +404,7 @@ impl Graph {
         self.graph.node_indices().collect_vec()
     }
 
-    /// The shape trackers for all the sources of `cur_node`
+    /// The shape trackers for all the sources of `cur_node` (assume exists)
     #[inline]
     pub fn get_source_shapes(&self, cur_node: &NodeIndex) -> Vec<ShapeTracker> {
         self.get_sources(*cur_node)
@@ -413,9 +415,8 @@ impl Graph {
 
     /// Return all those in `to_retrieve` whose operators are not `FType`
     #[inline]
-    pub fn do_to_retrieve<FType: 'static>(&self) -> Vec<(NodeIndex,(u8,ShapeTracker))> {
-        self
-            .to_retrieve
+    pub fn do_to_retrieve<FType: 'static>(&self) -> Vec<(NodeIndex, (u8, ShapeTracker))> {
+        self.to_retrieve
             .iter()
             .map(|(a, b)| (*a, *b))
             // Filter to non-FType

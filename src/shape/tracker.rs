@@ -416,11 +416,24 @@ mod tests {
         tracker.permute(&[2, 0, 1]);
         println!("Shape: [10, 5, 3]");
         println!("Strides: {:?}", tracker.strides());
-        assert_eq!(tracker.strides(), vec![Expression::from(1),Expression::from(15),Expression::from(3)]);
+        assert_eq!(
+            tracker.strides(),
+            vec![
+                Expression::from(1),
+                Expression::from(15),
+                Expression::from(3)
+            ]
+        );
         let index_expression = tracker.index_expression();
         println!("Ind: {:?}", index_expression);
-        assert_eq!(index_expression.substitute('z',0).simplify(),Expression::from(0));
-        assert_eq!(index_expression.substitute('z',50).simplify(),Expression::from(1));
+        assert_eq!(
+            index_expression.substitute('z', 0).simplify(),
+            Expression::from(0)
+        );
+        assert_eq!(
+            index_expression.substitute('z', 50).simplify(),
+            Expression::from(1)
+        );
         println!("Val: {:?}", tracker.valid_expression());
         assert_eq!(tracker.valid_expression(), Expression::from(1));
     }

@@ -1194,7 +1194,7 @@ fn egg_simplify(e: Expression, lower_bound_zero: bool) -> Expression {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_expressions() {
         let n = Expression::from('x') + (256 - (Expression::from('x') % 256));
@@ -1219,7 +1219,7 @@ mod tests {
         let sub = Expression::from('x') / 2;
         let new = main.substitute('x', sub).simplify();
         assert_eq!(new.len(), 5);
-        assert_eq!(new, (Expression::from('x') + -255*2)/2);
+        assert_eq!(new, (Expression::from('x') + -255 * 2) / 2);
     }
 
     #[test]
@@ -1228,7 +1228,10 @@ mod tests {
         let expr = (s * ((s - 4) + 1)) + (((s + 1) * ((s - 4) + 1)) - (s * ((s - 4) + 1)));
         let new = expr.simplify();
         assert_eq!(new.len(), 7);
-        assert_eq!(new, (Expression::from('s') + -3)*(Expression::from('s') +1));
+        assert_eq!(
+            new,
+            (Expression::from('s') + -3) * (Expression::from('s') + 1)
+        );
     }
 
     #[test]
