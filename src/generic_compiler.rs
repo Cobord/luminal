@@ -34,23 +34,11 @@ impl Compiler for CSE {
         while eliminated {
             eliminated = false;
             let mut srcs_set: HashMap<Vec<NodeIndex>, Vec<NodeIndex>> = HashMap::new();
-            for node in graph.graph.node_indices().collect_vec() {
-                if graph
-                    .graph
-                    .node_weight(node)
-                    .unwrap()
-                    .as_any()
-                    .is::<Function>()
-                {
+            for node in graph.collect_node_indices() {
+                if graph.this_node_is::<Function>(node) {
                     continue;
                 }
-                let srcs = graph
-                    .graph
-                    .edges_directed(node, petgraph::Direction::Incoming)
-                    .filter(|e| !e.weight().is_schedule())
-                    .sorted_by_key(|e| e.weight().as_data().unwrap().0)
-                    .map(|e| e.source())
-                    .collect_vec();
+                let srcs = graph.get_incomings(node, |dep| !dep.is_schedule());
 
                 if let Some(other_nodes) = srcs_set.get(&srcs) {
                     for other_node in other_nodes {
@@ -108,22 +96,10 @@ impl Compiler for RemoveSingleReductions {
     type Output = ();
     fn compile<T: ToIdsMut>(&self, graph: &mut Graph, mut ids: T) {
         for node in graph.graph.node_indices().collect::<Vec<_>>() {
-            let dim = if let Some(red) = graph
-                .graph
-                .node_weight(node)
-                .unwrap()
-                .as_any()
-                .downcast_ref::<SumReduce>()
-            {
+            let dim = if let Some(red) = graph.get_this_node_is::<SumReduce>(node) {
                 Some(red.0)
             } else {
-                graph
-                    .graph
-                    .node_weight(node)
-                    .unwrap()
-                    .as_any()
-                    .downcast_ref::<MaxReduce>()
-                    .map(|red| red.0)
+                graph.get_this_node_is::<MaxReduce>(node).map(|red| red.0)
             };
             if let Some(dim) = dim {
                 if graph

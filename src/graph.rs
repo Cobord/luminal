@@ -363,6 +363,47 @@ impl Graph {
         println!("Total: {}", format_duration(&start.elapsed()).bold());
         self.reset();
     }
+
+    #[inline]
+    pub fn this_node_is<F: 'static>(&self, node: NodeIndex) -> bool {
+        self.graph.node_weight(node).unwrap().as_any().is::<F>()
+    }
+
+    #[inline]
+    pub fn get_this_node_is<F: 'static>(&self, node: NodeIndex) -> Option<&F> {
+        self.graph
+            .node_weight(node)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<F>()
+    }
+
+    #[inline]
+    pub fn get_incomings(
+        &self,
+        node: NodeIndex,
+        dependency_criterion: impl Fn(&Dependency) -> bool,
+    ) -> Vec<NodeIndex> {
+        self.graph
+            .edges_directed(node, petgraph::Direction::Incoming)
+            .filter(|e| dependency_criterion(e.weight()))
+            .sorted_by_key(|e| e.weight().as_data().unwrap().0)
+            .map(|e| e.source())
+            .collect_vec()
+    }
+
+    #[inline]
+    pub fn collect_node_indices(&self) -> Vec<NodeIndex> {
+        self.graph.node_indices().collect_vec()
+    }
+
+    #[inline]
+    pub fn get_source_shapes(&self, cur_node: &NodeIndex) -> Vec<ShapeTracker> {
+        self.get_sources(*cur_node)
+            .into_iter()
+            .map(|(_, _, a)| a)
+            .collect_vec()
+    }
 }
 
 impl Deref for Graph {
