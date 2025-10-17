@@ -38,7 +38,7 @@ impl Compiler for CSE {
                 if graph.this_node_is::<Function>(node) {
                     continue;
                 }
-                let srcs = graph.get_incomings(node, |dep| !dep.is_schedule());
+                let srcs = graph.get_incomings(node);
 
                 if let Some(other_nodes) = srcs_set.get(&srcs) {
                     for other_node in other_nodes {

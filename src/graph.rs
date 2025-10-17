@@ -27,7 +27,8 @@ pub struct Graph {
     pub graph: StorageGraph,
     /// Tensors marked in this set will not get deleted when the graph is ran
     pub no_delete: FxHashSet<NodeIndex>,
-    /// Tensors marked in this set need to be retrieved later (mostly for optimizers to insert copy back calls, the graph itself doesn't treat these differently)
+    /// Tensors marked in this set need to be retrieved later
+    /// (mostly for optimizers to insert copy back calls, the graph itself doesn't treat these differently)
     pub to_retrieve: FxHashMap<NodeIndex, (u8, ShapeTracker)>,
     /// A cached list of nodes to run, source nodes, and view nodes to delete after execution.
     #[allow(clippy::type_complexity)]
@@ -378,31 +379,48 @@ impl Graph {
             .downcast_ref::<F>()
     }
 
+    /// Gather the nodes which have an edge going to `node`
+    /// and where the edge connecting them is a data dependency
+    /// They are properly sorted according to the `input_order`
+    /// field of the data dependencies.
     #[inline]
     pub fn get_incomings(
         &self,
         node: NodeIndex,
-        dependency_criterion: impl Fn(&Dependency) -> bool,
     ) -> Vec<NodeIndex> {
         self.graph
             .edges_directed(node, petgraph::Direction::Incoming)
-            .filter(|e| dependency_criterion(e.weight()))
+            .filter(|e| !e.weight().is_schedule())
             .sorted_by_key(|e| e.weight().as_data().unwrap().0)
             .map(|e| e.source())
             .collect_vec()
     }
 
+    /// All of the node indices
     #[inline]
     pub fn collect_node_indices(&self) -> Vec<NodeIndex> {
         self.graph.node_indices().collect_vec()
     }
 
+    /// The shape trackers for all the sources of `cur_node`
     #[inline]
     pub fn get_source_shapes(&self, cur_node: &NodeIndex) -> Vec<ShapeTracker> {
         self.get_sources(*cur_node)
             .into_iter()
             .map(|(_, _, a)| a)
             .collect_vec()
+    }
+
+    /// Return all those in `to_retrieve` whose operators are not `FType`
+    #[inline]
+    pub fn do_to_retrieve<FType: 'static>(&self) -> Vec<(NodeIndex,(u8,ShapeTracker))> {
+        self
+            .to_retrieve
+            .iter()
+            .map(|(a, b)| (*a, *b))
+            // Filter to non-FType
+            .filter(|(n, _)| !self.node_weight(*n).unwrap().as_any().is::<FType>())
+            .collect::<Vec<_>>()
     }
 }
 

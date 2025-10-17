@@ -10,7 +10,7 @@ use crate::prelude::*;
 use dyn_clone::{clone_trait_object, DynClone};
 use rustc_hash::FxHashMap;
 
-/// A tensor with data. The data can be anything that implements the Data trait
+/// A tensor with data. The data can be anything that implements the `Data` trait
 #[derive(Debug, Clone)]
 pub struct Tensor {
     data: Box<dyn Data>,
@@ -33,7 +33,10 @@ impl Tensor {
     }
 }
 
-/// Some sort of data, for instance a `Vec<f32>` on CPU, `CudaSlice<f32>` on Nvidia GPUs, or `metal::Buffer` for Apple GPUs
+/// Some sort of data, for instance a
+/// `Vec<f32>` on CPU
+/// `CudaSlice<f32>` on Nvidia GPUs
+/// `metal::Buffer` for Apple GPUs
 pub trait Data: Any + Debug + DynClone {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -110,6 +113,8 @@ impl<T: Operator> Operator for Arc<Mutex<T>> {
 #[allow(clippy::type_complexity)]
 pub struct Function(
     pub String,
+    // This could have been a closure `FnMut` that did capture mutable state without issue
+    // but the use here is intended for honest functions
     pub Box<dyn Fn(Vec<(InputTensor, ShapeTracker)>) -> Vec<Tensor>>,
 );
 
@@ -415,11 +420,11 @@ fn get_vec<'a>(tensor: &'a InputTensor<'a>) -> &'a Vec<f32> {
 
 fn get_index(
     data: &[f32],
-    (ind, val): &(Expression, Expression),
+    (ind, valid_ind): &(Expression, Expression),
     stack: &mut Vec<i64>,
     index: usize,
 ) -> f32 {
-    if val.exec_single_var_stack(index, stack) != 0 {
+    if valid_ind.exec_single_var_stack(index, stack) != 0 {
         let i = ind.exec_single_var_stack(index, stack);
         data[i]
     } else {
