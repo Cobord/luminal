@@ -53,3 +53,34 @@ fn execute_no_delete_keeps_tensors() {
 
     super::assert_close(&c.data(), &d_c.as_vec());
 }
+
+#[test]
+fn disjoint_pieces() {
+    let mut cx0 = Graph::new();
+    let a0 = cx0.tensor(3).set([1., 2., 3.]);
+    let b0 = cx0.tensor(3).set([4., 5., 6.]);
+    let _c0 = (a0 + b0).retrieve();
+    let mut cx1 = Graph::new();
+    let a1 = cx1.tensor(3).set([7., 8., 9.]);
+    let b1 = cx1.tensor(3).set([8., 7., 8.]);
+    let _c1 = (a1 * b1).retrieve();
+
+    let mut cx = cx0.disjoint_union(cx1);
+
+    cx.execute();
+
+    let d_dev = dfdx::tensor::Cpu::default();
+    let d_a = d_dev.tensor([1., 2., 3.]);
+    let d_b = d_dev.tensor([4., 5., 6.]);
+    let d_c0 = d_a + d_b;
+    let d_a = d_dev.tensor([7., 8., 9.]);
+    let d_b = d_dev.tensor([8., 7., 8.]);
+    let d_c1 = d_a * d_b;
+
+    let mut c0c1 = cx.to_retrieve_graph_tensors();
+    let c0 = c0c1.next().unwrap();
+    let c1 = c0c1.next().unwrap();
+    assert_eq!(c0c1.count(), 0);
+    super::assert_close(&c0.data(), &d_c0.as_vec());
+    super::assert_close(&c1.data(), &d_c1.as_vec());
+}

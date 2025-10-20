@@ -8,8 +8,12 @@ use std::{
 use super::compiler_utils::{ToIds, ToIdsMut};
 use colored::Colorize;
 use itertools::Itertools;
-use petgraph::{stable_graph::StableGraph, visit::EdgeRef, Direction};
-use rustc_hash::{FxHashMap, FxHashSet};
+use petgraph::{
+    stable_graph::StableGraph,
+    visit::{EdgeRef, IntoEdgeReferences},
+    Direction,
+};
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 pub type StorageGraph = StableGraph<Box<dyn Operator>, Dependency>;
 
@@ -422,6 +426,75 @@ impl Graph {
             // Filter to non-FType
             .filter(|(n, _)| !self.node_weight(*n).unwrap().as_any().is::<FType>())
             .collect::<Vec<_>>()
+    }
+
+    pub fn to_retrieve_graph_tensors(&mut self) -> impl Iterator<Item = GraphTensor> + '_ {
+        let mut retrieving = self
+            .to_retrieve
+            .iter()
+            .map(|(a, (b, c))| (*a, (*b, *c)))
+            .collect_vec();
+        retrieving.sort_by_key(|(a, (_, _))| *a);
+        retrieving
+            .into_iter()
+            .map(|(id, (_, shape))| GraphTensor::from_id(id, shape, self))
+    }
+
+    /// CAUTION: All `GraphTensor`s which refer to self or other
+    /// will be unusable from here on
+    pub fn disjoint_union(mut self, mut other: Self) -> Self {
+        let mut other_remap = FxHashMap::<NodeIndex, NodeIndex>::with_capacity_and_hasher(
+            other.graph.node_count(),
+            FxBuildHasher,
+        );
+        for other_node_idx in other.collect_node_indices() {
+            let other_node_weight = other.graph.node_weight_mut(other_node_idx).unwrap();
+            let mut dummy: Box<dyn Operator> = Box::new(Add);
+            core::mem::swap(&mut dummy, other_node_weight);
+            let new_node_idx = self.graph.add_node(dummy);
+            other_remap.insert(other_node_idx, new_node_idx);
+        }
+        for other_edge_ref in other.edge_references() {
+            let (a, b) = (other_edge_ref.source(), other_edge_ref.target());
+            let (a_new, b_new) = (*other_remap.get(&a).unwrap(), *other_remap.get(&b).unwrap());
+            self.graph.add_edge(a_new, b_new, *other_edge_ref.weight());
+        }
+        self.tensors.extend(
+            other
+                .tensors
+                .into_iter()
+                .map(|((a, b), c)| ((*other_remap.get(&a).unwrap(), b), c)),
+        );
+        let bad_keys: Vec<char> = self
+            .dyn_map
+            .keys()
+            .filter_map(|key| {
+                if other.dyn_map.contains_key(key)
+                    && other.dyn_map.get(key) != self.dyn_map.get(key)
+                {
+                    Some(*key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(bad_keys.is_empty());
+        self.dyn_map.extend(other.dyn_map);
+        self.no_delete.extend(
+            other
+                .no_delete
+                .into_iter()
+                .map(|a| *other_remap.get(&a).unwrap()),
+        );
+        self.to_retrieve.extend(
+            other
+                .to_retrieve
+                .into_iter()
+                .map(|(a, (b, c))| (*other_remap.get(&a).unwrap(), (b, c))),
+        );
+        self.linearized_graph = None;
+        self.consumers_map = None;
+        self
     }
 }
 
